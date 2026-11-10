@@ -1,7 +1,9 @@
+
 const express = require("express");
 const mysql = require("mysql2");
 const app = express();
-app.use(express.json()); 
+
+app.use(express.json());
 
 const db = mysql.createConnection({
     host: "localhost",
@@ -9,17 +11,19 @@ const db = mysql.createConnection({
     password: "",
     database: "konyvtar_db",
     port: 3307,
-    decimalNumbers: true 
+    decimalNumbers: true
 });
 
 function lekerdez(res, sql, params = []) {
     db.query(sql, params, (err, result) => {
         if (err) {
+            console.error(err.message);
             return res.status(500).json({ hiba: "Hiba történt" });
         }
         res.json(result);
     });
 }
+
 
 
 app.get("/konyvek", (req, res) => {
@@ -33,6 +37,7 @@ app.get("/konyvek", (req, res) => {
 });
 
 
+
 app.get("/konyvek/elerheto", (req, res) => {
     lekerdez(res, `
         SELECT * FROM konyvek
@@ -41,12 +46,14 @@ app.get("/konyvek/elerheto", (req, res) => {
 });
 
 
+
 app.get("/konyvek/kereses/:szoveg", (req, res) => {
     lekerdez(res,
         "SELECT * FROM konyvek WHERE cim LIKE ?",
         [`%${req.params.szoveg}%`]
     );
 });
+
 
 
 app.get("/mufajok/statisztika", (req, res) => {
@@ -62,6 +69,7 @@ app.get("/mufajok/statisztika", (req, res) => {
 });
 
 
+
 app.get("/konyvek/hosszuak", (req, res) => {
     lekerdez(res, `
         SELECT cim, kiadasi_ev, oldalszam
@@ -70,6 +78,8 @@ app.get("/konyvek/hosszuak", (req, res) => {
         ORDER BY oldalszam DESC
     `);
 });
+
+
 
 app.get("/konyvek/:id", (req, res) => {
     db.query(`
@@ -83,42 +93,100 @@ app.get("/konyvek/:id", (req, res) => {
             console.error(err.message);
             return res.status(500).json({ hiba: "Hiba történt" });
         }
+
         if (result.length === 0) {
-            return res.status(404).json({ hiba: "A könyv nem található" });
+            return res.status(404).json({
+                hiba: "A könyv nem található"
+            });
         }
+
         res.json(result[0]);
     });
 });
+
+
 
 app.post("/konyvek", (req, res) => {
     const { mufaj_id, cim, kiadasi_ev, oldalszam, kolcsonozheto } = req.body;
 
     db.query(
-        `INSERT INTO konyvek (mufaj_id, cim, kiadasi_ev, oldalszam, kolcsonozheto)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO konyvek
+        (mufaj_id, cim, kiadasi_ev, oldalszam, kolcsonozheto)
+        VALUES (?, ?, ?, ?, ?)`,
         [mufaj_id, cim, kiadasi_ev, oldalszam, kolcsonozheto],
         (err, result) => {
             if (err) {
                 console.error(err.message);
                 return res.status(500).json({ hiba: "Hiba történt" });
             }
-            res.status(201).json({ id: result.insertId, uzenet: "Könyv felvéve" });
+
+            res.status(201).json({
+                uzenet: "Könyv sikeresen hozzáadva",
+                id: result.insertId
+            });
         }
     );
 });
 
-app.delete("/konyvek/:id", (req, res) => {
-    db.query("DELETE FROM konyvek WHERE id = ?", [req.params.id], (err, result) => {
-        if (err) {
-            console.error(err.message);
-            return res.status(500).json({ hiba: "Hiba történt" });
+
+
+app.put("/konyvek/:id", (req, res) => {
+    const { mufaj_id, cim, kiadasi_ev, oldalszam, kolcsonozheto } = req.body;
+
+    db.query(
+        `UPDATE konyvek
+         SET mufaj_id = ?,
+             cim = ?,
+             kiadasi_ev = ?,
+             oldalszam = ?,
+             kolcsonozheto = ?
+         WHERE id = ?`,
+        [mufaj_id, cim, kiadasi_ev, oldalszam, kolcsonozheto, req.params.id],
+        (err, result) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).json({ hiba: "Hiba történt" });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    hiba: "A könyv nem található"
+                });
+            }
+
+            res.json({
+                uzenet: "Könyv sikeresen módosítva"
+            });
         }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ hiba: "A könyv nem található" });
-        }
-        res.json({ uzenet: "Könyv törölve" });
-    });
+    );
 });
+
+
+
+app.delete("/konyvek/:id", (req, res) => {
+    db.query(
+        "DELETE FROM konyvek WHERE id = ?",
+        [req.params.id],
+        (err, result) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).json({ hiba: "Hiba történt" });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    hiba: "A könyv nem található"
+                });
+            }
+
+            res.json({
+                uzenet: "Könyv sikeresen törölve"
+            });
+        }
+    );
+});
+
+
 
 app.listen(3000, () => {
     console.log("Szerver fut: http://localhost:3000");
